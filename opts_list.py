@@ -1,6 +1,7 @@
 import subprocess
 import re
 import argparse
+import sys
 
 def get_android_devices(verbose=False):
     """Gets connected Android devices and their audio forwarding potential."""
@@ -20,7 +21,8 @@ def get_android_devices(verbose=False):
                         devices.append({
                             'serial': serial,
                             'audio_possible': audio_possible,
-                            'full_info': line.strip()
+                            'full_info': line.strip(),
+                            'sdk_version': sdk_version
                         })
                     except (subprocess.CalledProcessError, ValueError) as e:
                         if verbose:
@@ -65,23 +67,41 @@ if __name__ == "__main__":
     import sys
 
     parser = argparse.ArgumentParser(description="Launch scrcpy with options.")
-    parser.add_argument("-s", "--serial", required=True, help="Serial number of the target device.")
+    parser.add_argument("-s", "--serial", help="Serial number of the target device.")
     parser.add_argument("-v", "--video-codec", help="Video codec (e.g., h264, vp8).")
     parser.add_argument("-m", "--max-size", type=int, help="Maximum resolution.")
     parser.add_argument("-f", "--max-fps", type=int, help="Maximum frames per second.")
     parser.add_argument("-n", "--no-audio", action="store_true", help="Disable audio forwarding.")
     parser.add_argument("-k", "--keyboard-mode", choices=["default", "uhid"], default="default", help="Keyboard mode to use. Default or UHID")
     parser.add_argument("--verbose", action="store_true", help="Enable verbose output.")
-
+    parser.add_argument("-l","--list-devices", action="store_true", help="List available devices and options.")
 
     args = parser.parse_args()
 
-    devices = get_android_devices(args.verbose) # Pass verbose argument
+    if args.list_devices:
+        devices = get_android_devices(args.verbose)
+        if devices:
+            for device in devices:
+                print(f"Device: {device['full_info']}")
+                print(f"  Serial: {device['serial']}")
+                print(f"  SDK Version: {device['sdk_version']}")
+                print(f"  Audio Forwarding Possible: {'Yes' if device['audio_possible'] else 'No'}")
+                print("-" * 20)
+        else:
+            print("No devices found.")
+        exit(0)
+
+    if not args.serial:
+        print("Error: Serial number (-s) is required unless --list-devices is used.")
+        parser.print_help()
+        exit(1)
+
+    devices = get_android_devices(args.verbose)
 
     if devices:
       if args.verbose:
-          for device in devices: # Print all devices in verbose mode
+          for device in devices:
               print(f"Found device: {device['full_info']} (Audio: {'Possible' if device['audio_possible'] else 'Not Possible'})")
-      launch_scrcpy(args.serial, args.video_codec, args.max_size, args.max_fps, not args.no_audio, args.keyboard_mode, args.verbose) # Pass verbose argument
+      launch_scrcpy(args.serial, args.video_codec, args.max_size, args.max_fps, not args.no_audio, args.keyboard_mode, args.verbose)
     else:
-        exit(1) # Indicate an error condition to calling processes
+        exit(1)
